@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>★ 가계부 ★</title>
   <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Black+Han+Sans&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -487,23 +488,23 @@
 </div>
 
 <script>
+  /* ── Supabase 초기화 ── */
+  const SUPABASE_URL = 'https://pdfvlgyarvnxdojrahat.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_tssFLcAnFG2wi1ZV3my5fA_sio8h1jZ';
+  const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
   /* ── 상태 ── */
   let type = 'income';
   let currentYear, currentMonth;
   let donutChart = null;
   let barChart   = null;
   let activeTab  = 'donut';
+  let allTransactions = [];
 
   const CAT_COLORS = {
-    '식비': '#FF1F3D',
-    '교통': '#2979FF',
-    '쇼핑': '#FF2DB4',
-    '의료': '#00E5FF',
-    '문화': '#FFE600',
-    '급여': '#00E676',
-    '기타': '#FF9800',
+    '식비': '#FF1F3D', '교통': '#2979FF', '쇼핑': '#FF2DB4',
+    '의료': '#00E5FF', '문화': '#FFE600', '급여': '#00E676', '기타': '#FF9800',
   };
-
   const CHART_FONT = { family: "'Black Han Sans', 'Arial Black', sans-serif", size: 12 };
   const BLACK = '#0d0d0d';
 
@@ -512,6 +513,18 @@
   currentYear  = today.getFullYear();
   currentMonth = today.getMonth() + 1;
   document.getElementById('date').value = today.toISOString().slice(0, 10);
+
+  /* ── DB에서 전체 데이터 로드 ── */
+  async function loadFromDB() {
+    const { data, error } = await db
+      .from('transactions')
+      .select('*')
+      .order('id', { ascending: false });
+    if (error) { console.error('로드 오류:', error.message); return; }
+    allTransactions = data.map(t => ({ ...t, desc: t.description }));
+  }
+
+  function fmt(n) { return '₩' + Number(n).toLocaleString('ko-KR'); }
 
   /* ── 월 이동 ── */
   function changeMonth(dir) {
@@ -528,13 +541,8 @@
     document.getElementById('btnExpense').classList.toggle('active', t === 'expense');
   }
 
-  /* ── 로컬스토리지 ── */
-  function load() { return JSON.parse(localStorage.getItem('ggm_transactions') || '[]'); }
-  function save(d) { localStorage.setItem('ggm_transactions', JSON.stringify(d)); }
-  function fmt(n)  { return '₩' + Number(n).toLocaleString('ko-KR'); }
-
   /* ── 거래 추가 ── */
-  function addTransaction() {
+  async function addTransaction() {
     const desc   = document.getElementById('desc').value.trim();
     const amount = parseFloat(document.getElementById('amount').value);
     const cat    = document.getElementById('category').value;
@@ -544,18 +552,30 @@
     if (!amount || amount <= 0) { alert('금액을 입력해주세요!'); return; }
     if (!date)                  { alert('날짜를 선택해주세요!'); return; }
 
-    const data = load();
-    data.unshift({ id: Date.now(), type, desc, amount, category: cat, date });
-    save(data);
+    const btn = document.querySelector('.btn-add');
+    btn.disabled = true;
+    btn.textContent = '저장 중...';
+
+    const { error } = await db.from('transactions').insert({
+      id: Date.now(), type, description: desc, amount, category: cat, date
+    });
+
+    btn.disabled = false;
+    btn.textContent = '✚ 추가하기 !';
+
+    if (error) { alert('저장 실패: ' + error.message); return; }
     document.getElementById('desc').value   = '';
     document.getElementById('amount').value = '';
+    await loadFromDB();
     render();
   }
 
   /* ── 거래 삭제 ── */
-  function deleteTransaction(id) {
+  async function deleteTransaction(id) {
     if (!confirm('삭제하시겠습니까?')) return;
-    save(load().filter(t => t.id !== id));
+    const { error } = await db.from('transactions').delete().eq('id', id);
+    if (error) { alert('삭제 실패: ' + error.message); return; }
+    await loadFromDB();
     render();
   }
 
@@ -571,145 +591,70 @@
     else                 renderBar();
   }
 
-  /* ── 도넛 차트: 이번 달 카테고리별 지출 ── */
+  /* ── 도넛 차트 ── */
   function renderDonut() {
-    const data = load();
-    const expenses = data.filter(t => {
+    const expenses = allTransactions.filter(t => {
       const d = new Date(t.date);
       return d.getFullYear() === currentYear && (d.getMonth() + 1) === currentMonth && t.type === 'expense';
     });
-
     const catMap = {};
     expenses.forEach(t => { catMap[t.category] = (catMap[t.category] || 0) + t.amount; });
-
     const labels = Object.keys(catMap);
     const values = Object.values(catMap);
 
     if (donutChart) { donutChart.destroy(); donutChart = null; }
-
     const panel = document.getElementById('panelDonut');
     if (labels.length === 0) {
       panel.innerHTML = '<div class="chart-empty">★ 지출 데이터가 없습니다 ★</div>';
       return;
     }
-    if (!panel.querySelector('canvas')) {
-      panel.innerHTML = '<canvas id="donutChart"></canvas>';
-    }
-
-    const ctx = document.getElementById('donutChart').getContext('2d');
-    donutChart = new Chart(ctx, {
+    if (!panel.querySelector('canvas')) panel.innerHTML = '<canvas id="donutChart"></canvas>';
+    donutChart = new Chart(document.getElementById('donutChart').getContext('2d'), {
       type: 'doughnut',
-      data: {
-        labels,
-        datasets: [{
-          data: values,
-          backgroundColor: labels.map(l => CAT_COLORS[l] || '#ccc'),
-          borderColor: BLACK,
-          borderWidth: 3,
-          hoverOffset: 10,
-        }]
-      },
+      data: { labels, datasets: [{ data: values, backgroundColor: labels.map(l => CAT_COLORS[l] || '#ccc'), borderColor: BLACK, borderWidth: 3, hoverOffset: 10 }] },
       options: {
-        responsive: true,
-        cutout: '55%',
+        responsive: true, cutout: '55%',
         plugins: {
-          legend: {
-            position: 'bottom',
-            labels: {
-              font: CHART_FONT,
-              color: BLACK,
-              padding: 14,
-              boxWidth: 18,
-              borderRadius: 0,
-            }
-          },
-          tooltip: {
-            bodyFont: CHART_FONT,
-            callbacks: {
-              label: ctx => ` ${ctx.label}: ${fmt(ctx.parsed)}`
-            }
-          }
+          legend: { position: 'bottom', labels: { font: CHART_FONT, color: BLACK, padding: 14, boxWidth: 18, borderRadius: 0 } },
+          tooltip: { bodyFont: CHART_FONT, callbacks: { label: ctx => ` ${ctx.label}: ${fmt(ctx.parsed)}` } }
         }
       }
     });
   }
 
-  /* ── 바 차트: 최근 6개월 수입/지출 ── */
+  /* ── 바 차트 ── */
   function renderBar() {
-    const data = load();
-
     const months = [];
     for (let i = 5; i >= 0; i--) {
       let y = currentYear, m = currentMonth - i;
       if (m <= 0) { m += 12; y--; }
       months.push({ year: y, month: m, label: `${y === currentYear ? '' : y + '/'}${m}월` });
     }
-
-    const pick = (mObj, t) => {
-      const d = new Date(t.date);
-      return d.getFullYear() === mObj.year && (d.getMonth() + 1) === mObj.month;
-    };
-
-    const incomes  = months.map(m => data.filter(t => pick(m,t) && t.type==='income').reduce((s,t)=>s+t.amount,0));
-    const expenses = months.map(m => data.filter(t => pick(m,t) && t.type==='expense').reduce((s,t)=>s+t.amount,0));
+    const pick = (mObj, t) => { const d = new Date(t.date); return d.getFullYear() === mObj.year && (d.getMonth() + 1) === mObj.month; };
+    const incomes  = months.map(m => allTransactions.filter(t => pick(m,t) && t.type==='income').reduce((s,t)=>s+t.amount,0));
+    const expenses = months.map(m => allTransactions.filter(t => pick(m,t) && t.type==='expense').reduce((s,t)=>s+t.amount,0));
 
     if (barChart) { barChart.destroy(); barChart = null; }
-
     const panel = document.getElementById('panelBar');
-    if (!panel.querySelector('canvas')) {
-      panel.innerHTML = '<canvas id="barChart"></canvas>';
-    }
-
-    const ctx = document.getElementById('barChart').getContext('2d');
-    barChart = new Chart(ctx, {
+    if (!panel.querySelector('canvas')) panel.innerHTML = '<canvas id="barChart"></canvas>';
+    barChart = new Chart(document.getElementById('barChart').getContext('2d'), {
       type: 'bar',
       data: {
         labels: months.map(m => m.label),
         datasets: [
-          {
-            label: '수입',
-            data: incomes,
-            backgroundColor: '#00E676',
-            borderColor: BLACK,
-            borderWidth: 3,
-          },
-          {
-            label: '지출',
-            data: expenses,
-            backgroundColor: '#FF1F3D',
-            borderColor: BLACK,
-            borderWidth: 3,
-          }
+          { label: '수입', data: incomes,  backgroundColor: '#00E676', borderColor: BLACK, borderWidth: 3 },
+          { label: '지출', data: expenses, backgroundColor: '#FF1F3D', borderColor: BLACK, borderWidth: 3 }
         ]
       },
       options: {
         responsive: true,
         plugins: {
-          legend: {
-            labels: { font: CHART_FONT, color: BLACK, padding: 14, boxWidth: 18 }
-          },
-          tooltip: {
-            bodyFont: CHART_FONT,
-            callbacks: {
-              label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.parsed.y)}`
-            }
-          }
+          legend: { labels: { font: CHART_FONT, color: BLACK, padding: 14, boxWidth: 18 } },
+          tooltip: { bodyFont: CHART_FONT, callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.parsed.y)}` } }
         },
         scales: {
-          x: {
-            grid: { display: false },
-            ticks: { font: CHART_FONT, color: BLACK },
-            border: { color: BLACK, width: 2 }
-          },
-          y: {
-            grid: { color: 'rgba(0,0,0,0.08)' },
-            ticks: {
-              font: CHART_FONT,
-              color: BLACK,
-              callback: v => '₩' + (v >= 10000 ? Math.round(v/10000)+'만' : v.toLocaleString('ko-KR'))
-            },
-            border: { color: BLACK, width: 2 }
-          }
+          x: { grid: { display: false }, ticks: { font: CHART_FONT, color: BLACK }, border: { color: BLACK, width: 2 } },
+          y: { grid: { color: 'rgba(0,0,0,0.08)' }, ticks: { font: CHART_FONT, color: BLACK, callback: v => '₩' + (v >= 10000 ? Math.round(v/10000)+'만' : v.toLocaleString('ko-KR')) }, border: { color: BLACK, width: 2 } }
         }
       }
     });
@@ -717,14 +662,11 @@
 
   /* ── 전체 렌더 ── */
   function render() {
-    const all    = load();
     const filter = document.getElementById('filterCategory').value;
-
-    const monthData = all.filter(t => {
+    const monthData = allTransactions.filter(t => {
       const d = new Date(t.date);
       return d.getFullYear() === currentYear && (d.getMonth() + 1) === currentMonth;
     });
-
     const income  = monthData.filter(t => t.type==='income').reduce((s,t)=>s+t.amount, 0);
     const expense = monthData.filter(t => t.type==='expense').reduce((s,t)=>s+t.amount, 0);
 
@@ -733,19 +675,15 @@
     document.getElementById('totalExpense').textContent = fmt(expense);
     document.getElementById('balance').textContent      = fmt(income - expense);
 
-    /* 차트 갱신 */
     if (activeTab === 'donut') renderDonut();
     else                       renderBar();
 
-    /* 거래 목록 */
     const filtered = monthData.filter(t => filter === 'all' || t.category === filter);
     const list = document.getElementById('txList');
-
     if (filtered.length === 0) {
       list.innerHTML = '<div class="empty">★ 이번 달 내역이 없습니다 ★</div>';
       return;
     }
-
     list.innerHTML = filtered.map(t => `
       <div class="tx-item ${t.type}">
         <div class="tx-left">
@@ -768,7 +706,11 @@
     if (e.key === 'Enter' && (e.target.id === 'desc' || e.target.id === 'amount')) addTransaction();
   });
 
-  render();
+  /* ── 앱 시작 ── */
+  (async () => {
+    await loadFromDB();
+    render();
+  })();
 </script>
 </body>
 </html>
