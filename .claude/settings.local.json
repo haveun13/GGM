@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(gh --version)",
+      "PowerShell($env:PATH = \"C:\\\\Program Files\\\\GitHub CLI;$env:PATH\"; gh auth login --web --git-protocol https)"
+    ]
+  }
+}
