@@ -13,3 +13,16 @@ export type Profile = {
   created_at: string
   updated_at: string
 }
+
+export type Product = {
+  id: string
+  seller_id: string
+  title: string
+  description: string
+  price: number
+  category: string
+  condition: string
+  status: string
+  image_url: string | null
+  created_at: string
+}
