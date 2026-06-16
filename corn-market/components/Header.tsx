@@ -26,10 +26,16 @@ export function Header({ nickname }: HeaderProps) {
 
         <div className="flex items-center gap-3">
           {nickname && (
-            <span className="text-sm text-gray-500 hidden sm:block">
+            <Link href="/profile" className="text-sm text-gray-500 hidden sm:block hover:text-corn-600 transition-colors">
               <span className="font-bold text-corn-500">{nickname}</span> 님
-            </span>
+            </Link>
           )}
+          <Link
+            href="/profile"
+            className="text-sm px-4 py-1.5 rounded-full border-2 border-corn-300 text-corn-600 font-bold hover:bg-corn-50 transition-colors"
+          >
+            내 프로필
+          </Link>
           <button
             onClick={handleLogout}
             className="text-sm px-4 py-1.5 rounded-full border-2 border-corn-400 text-corn-600 font-bold hover:bg-corn-50 transition-colors"
