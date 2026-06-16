@@ -1,0 +1,26 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Noto Sans KR', system-ui, sans-serif;
+  background-color: #FFFDE7;
+  color: #1A1A1A;
+}
+
+@layer utilities {
+  .corn-card {
+    @apply bg-white rounded-3xl border-2 border-yellow-200 shadow-sm;
+  }
+  .corn-input {
+    @apply w-full px-4 py-3 rounded-2xl border-2 border-gray-200 focus:border-yellow-400 focus:outline-none text-sm transition-colors;
+  }
+  .corn-btn-primary {
+    @apply w-full py-3 bg-corn-400 hover:bg-corn-500 text-gray-900 font-bold rounded-2xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm active:scale-95;
+  }
+  .corn-btn-secondary {
+    @apply w-full py-3 bg-white hover:bg-corn-50 text-corn-600 font-bold rounded-2xl border-2 border-corn-400 transition-all duration-200 text-sm active:scale-95;
+  }
+}
