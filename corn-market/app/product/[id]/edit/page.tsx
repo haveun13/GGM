@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase, type Product } from '@/lib/supabase'
@@ -9,7 +9,8 @@ import { ImageUpload } from '@/components/ImageUpload'
 const CATEGORIES = ['디지털/가전', '의류/패션', '가구/인테리어', '도서/음반', '스포츠/레저', '유아동', '뷰티/미용', '반려동물', '기타']
 const CONDITIONS = ['새상품 (미개봉)', '거의 새것', '중고']
 
-export default function EditProductPage({ params }: { params: { id: string } }) {
+export default function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const [product, setProduct] = useState<Product | null>(null)
   const [title, setTitle] = useState('')
   const [price, setPrice] = useState('')
@@ -30,7 +31,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
       if (!session) { router.replace('/login'); return }
 
       const { data } = await supabase
-        .from('products').select('*').eq('id', params.id).single()
+        .from('products').select('*').eq('id', id).single()
 
       if (!data || data.seller_id !== session.user.id) { router.replace('/market'); return }
 
@@ -44,7 +45,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
       setLoading(false)
     }
     init()
-  }, [params.id, router])
+  }, [id, router])
 
   const handleImageChange = (file: File) => {
     setImageFile(file)
@@ -119,7 +120,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
     <div className="min-h-screen bg-corn-50">
       <header className="bg-white border-b-2 border-corn-300 sticky top-0 z-50">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link href={`/product/${params.id}`} className="flex items-center gap-1 text-gray-500 hover:text-gray-800 transition-colors">
+          <Link href={`/product/${id}`} className="flex items-center gap-1 text-gray-500 hover:text-gray-800 transition-colors">
             <span className="text-lg">←</span>
             <span className="text-sm font-bold">뒤로</span>
           </Link>

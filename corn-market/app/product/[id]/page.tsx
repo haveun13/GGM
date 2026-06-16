@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase, type Product, type Profile } from '@/lib/supabase'
@@ -12,7 +12,8 @@ const STATUS_COLORS: Record<string, string> = {
   '거래완료': 'bg-gray-100 text-gray-500',
 }
 
-export default function ProductDetailPage({ params }: { params: { id: string } }) {
+export default function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const [product, setProduct] = useState<Product | null>(null)
   const [seller, setSeller] = useState<Profile | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -26,7 +27,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
       setCurrentUserId(session?.user.id ?? null)
 
       const { data: productData } = await supabase
-        .from('products').select('*').eq('id', params.id).single()
+        .from('products').select('*').eq('id', id).single()
 
       if (!productData) { router.replace('/market'); return }
 
@@ -38,7 +39,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
       setLoading(false)
     }
     init()
-  }, [params.id, router])
+  }, [id, router])
 
   const handleStatusChange = async (newStatus: string) => {
     if (!product) return
@@ -84,7 +85,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
           </Link>
           <span className="text-base font-black text-gray-800">상품 상세</span>
           {isMine
-            ? <Link href={`/product/${product.id}/edit`} className="text-sm text-corn-500 font-black hover:text-corn-600 transition-colors">수정</Link>
+            ? <Link href={`/product/${id}/edit`} className="text-sm text-corn-500 font-black hover:text-corn-600 transition-colors">수정</Link>
             : <div className="w-10" />
           }
         </div>
